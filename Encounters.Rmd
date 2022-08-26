@@ -1,0 +1,104 @@
+---
+title: "Whale Encounters"
+author: "S. Wotherspoon"
+date: "02/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(geosphere)
+library(ggplot2)
+```
+
+## Data
+
+```{r}
+d <- read.csv("Encounters.csv",header=T)
+d$Date.start <- as.POSIXct(strptime(paste(d$Date,d$Encounter.start),"%d/%m/%Y %I:%M:%S %p",tz="GMT"))
+d$Date.end <- as.POSIXct(strptime(paste(d$Date,d$Encounter.Finish),"%d/%m/%Y %I:%M:%S %p",tz="GMT"))
+d$Date <- as.POSIXct(strptime(d$Date,"%d/%m/%Y",tz="GMT"))
+```
+
+The ordering of records in the data appears wrong, so we order by date, boat and encounter number, and then check that "same as last" remains correct.
+```{r}
+d <- d[order(d$Date,d$Boat,d$EncounterID),]
+```
+
+Check the ordering of the encounter starts
+```{r}
+any(sapply(split(d,d[,c("Date","Boat")],drop=TRUE), function(d) is.unsorted(d$Date.start)))
+```
+
+The gaps between some encounter times are too great for the "same as last" indicator to be reliable. 
+```{r}
+k <- which(d$Same.as.last!="N")
+d$Date.start[k]-d$Date.start[k-1]
+```
+
+Find common groups by comparing group structure and encounter times and positions.
+```{r}
+k <- 2:nrow(d)
+dx <- distGeo(cbind(d$Longitude[k],d$Latitude[k]),
+              cbind(d$Longitude[k-1],d$Latitude[k-1]))
+dt <- d$Date.start[k]-d$Date.start[k-1]
+same <- 
+  ## Same boat
+  (d$Boat[k]==d$Boat[k-1]) &
+  ## Same composition
+  (d$Group.Size[k]==d$Group.Size[k-1]) &
+  (d$Group.comp...AD[k]==d$Group.comp...AD[k-1]) &
+  (d$Group.comp...Calf[k]==d$Group.comp...Calf[k-1]) &
+  (d$Cow.calf.pair[k]==d$Cow.calf.pair[k-1]) &
+  ## Same encounter time
+  dt == 0 &
+  ## Within 200m?
+  dx < 200
+```
+
+Drop encounters with the same group
+```{r}
+d.u <- d[c(TRUE,!same),]
+```
+
+We will only compare distances between encounters from the same boat and date
+```{r}
+k <- 2:nrow(d.u)
+index <- k[
+   ## Same boat
+  (d.u$Boat[k]==d.u$Boat[k-1]) &
+   ## Same date
+  (d.u$Date[k]==d.u$Date[k-1])]
+## Inter-encounter distances
+dist <- distGeo(cbind(d.u$Longitude[index],d.u$Latitude[index]),
+                cbind(d.u$Longitude[index-1],d.u$Latitude[index-1]))
+```
+
+
+AS an initial test, we compare the distance between encounters of the same type (cow/calf vs adults). 
+
+First we calculate the differnce in means distance for encounters of the same type and encounters of different types.
+```{r}
+cowcalf <- d.u$Cow.calf.pair
+same <- cowcalf[index]==cowcalf[index-1]
+diff.obs <- mean(dist[!same]) - mean(dist[same])
+```
+
+Permute the cow/calf vs adult labels and test the difference in mean distances
+```{r}
+n <- 1000
+diffs <- double(n)
+for(k in 1:n) {
+  cowcalf <- sample(d.u$Cow.calf.pair)
+  same <- cowcalf[index]==cowcalf[index-1]
+  diffs[k] <- mean(dist[!same]) - mean(dist[same])  
+}
+hist(diffs)
+abline(v=diff.obs)
+mean(diff.obs > diffs)
+```
+
+
