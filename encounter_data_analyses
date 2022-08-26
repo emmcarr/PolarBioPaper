@@ -1,0 +1,194 @@
+library("lubridate")
+library(reshape2)
+library(ggplot2)
+library(RColorBrewer)
+library(tidyverse)
+library(ggpubr)
+library(sciplot)
+
+setwd("")
+#Leena:
+setwd("")
+#where to put outputs
+path_figures <- ""
+
+survey<-read.csv("")
+
+
+#plot histogram of encounter times
+hist(minute(hm(survey$Encounter.time)), xlab = "Minutes", main = NULL)
+table(minute(hm(survey$Encounter.time)))
+mean(minute(hm(survey$Encounter.time))) 
+se(minute(hm(survey$Encounter.time))) 
+
+#subset 2020 data to calculate mean and SE of encounter times
+d.2020<-survey %>% filter(Year == "2020")
+se(minute(hm(d.2020$Encounter.time))) 
+mean(minute(hm(d.2020$Encounter.time))) 
+
+#subset 2021 data to calculate mean and SE of encounter times
+d.2021<-survey %>% filter(Year == "2021")
+se(minute(hm(d.2021$Encounter.time))) 
+mean(minute(hm(d.2021$Encounter.time))) 
+
+## summarise the group size vs behaviour
+cc.pair <- filter(survey, Cow.calf.pair == "Yes") 
+ad.group <- filter(survey, Cow.calf.pair == "No") 
+table(cc.pair$Group.Size, cc.pair$Pre.approach.behaviour)
+table(ad.group$Group.Size, ad.group$Pre.approach.behaviour)
+
+
+#--------------------------------------------------------------------------
+
+# Figure 5 - Proportion of all encounters by group size by week block
+
+## summarising group size by week
+group.calendar<-(table(survey$Calendar.block, survey$Group.Size))
+five.plus<-c(7, 3, 8, 27, 1, 1, 1)
+group.calendar<-cbind(group.calendar[,1:4], five.plus)
+
+gc.plot<-melt(group.calendar)
+
+levels(gc.plot$Var2) <- list("1" = "1", "2" = "2", "3" = "3", "4" = "4", "5+" = "five.plus")
+
+figure5 <- ggplot(gc.plot, aes(fill=Var2, y=value, x=as.factor(Var1))) + 
+  geom_bar(position="fill", stat="identity", color = "black") + 
+  scale_fill_brewer(palette="Spectral") +
+  xlab("Week block") +
+  ylab("Proportion of encounters") +
+  labs(fill = "Group size") +
+  theme_bw() + #or 
+  #theme_classic() +
+  scale_x_discrete(labels=c("1" = "29 Jun-5 Jul", 
+                          "2" = "6 Jul-12 Jul",
+                          "3" = "13 Jul-19 Jul",
+                          "4" = "20 Jul-27 Jul",
+                          "5" = "28 Jul-3 Aug",
+                          "6" = "4 Aug-10 Aug",
+                          "7" = "11 Aug-18 Aug")) +
+  theme(text=element_text(family = "sans", size=10, color = "black"),
+        legend.title = element_text(size=14),
+        legend.text = element_text(size=14),
+        axis.title = element_text(family = "sans", size=14, color="black"),
+        axis.text = element_text(family = "sans", size=11, color="black"),
+        panel.grid.major = element_line(color="gray50", linetype = 3),
+        axis.text.x.bottom = element_text(vjust=0.5),
+        strip.text = element_text(size=14)        )
+figure5
+# export figure w=1100 h=700
+
+#--------------------------------------------------------------------------
+
+#Figure 6 - Proportion of all encounters by pre-approach behaviour and by week block
+
+## summarising behaviour by week
+behav.calendar<-(table(survey$Calendar.block, survey$Pre.approach.behaviour))
+behav.plot<-melt(behav.calendar)
+
+levels(behav.plot$Var2) <- list("Log" = "L", "Mill" = "M", "Social" = "S", "Travel" = "T")
+
+figure6 <- ggplot(behav.plot, aes(fill=Var2, y=value, x=as.factor(Var1))) + 
+  geom_bar(position="fill", stat="identity", color = "black") +
+  scale_fill_brewer(palette="PuBuGn") +
+  xlab("Week block") +
+  ylab("Proportion of encounters") +
+  labs(fill = "Preapproach \nbehaviour") +
+  theme_bw() +  #or 
+  #theme_classic() +
+  scale_x_discrete(labels=c("1" = "29 Jun-5 Jul", 
+                            "2" = "6 Jul-12 Jul",
+                            "3" = "13 Jul-19 Jul",
+                            "4" = "20 Jul-27 Jul",
+                            "5" = "28 Jul-3 Aug",
+                            "6" = "4 Aug-10 Aug",
+                            "7" = "11 Aug-18 Aug")) +
+  theme(text=element_text(family = "sans", size=10, color = "black"),
+        legend.title = element_text(size=14),
+        legend.text = element_text(size=14),
+        axis.title = element_text(family = "sans", size=14, color="black"),
+        axis.text = element_text(family = "sans", size=11, color="black"),
+        panel.grid.major = element_line(color="gray50", linetype = 3),
+        axis.text.x.bottom = element_text(vjust=0.5),
+        strip.text = element_text(size=14)        )
+figure6
+
+# export figure w=1150 h=700
+
+#--------------------------------------------------------------------------
+
+#changing Table 5 to Figure 7
+
+
+behaviour_df<-read.csv("DecadeVsBehaviour.csv")
+#tidy df
+behaviour_df <- behaviour_df %>% 
+  select(-X) %>% 
+  rename(Group.size = ?..Group.size)
+
+
+#behaviour.plot<-melt(behaviour_df, id=c("Group.size","Ccpair", "Year"))
+
+
+behaviour_df_1998 <- behaviour_df %>% 
+  filter(Year == 1998) %>% 
+  select(-Year) %>% 
+  melt(id=c("Group.size","Ccpair"))
+levels(behaviour_df_1998$Ccpair) <- list("Adult group" = "N", "Cow-calf group" = "Y")
+
+behaviour_df_2020 <- behaviour_df %>% 
+  filter(Year == 2020) %>% 
+  select(-Year) %>% 
+  melt(id=c("Group.size","Ccpair"))
+levels(behaviour_df_2020$Ccpair) <- list("Adult group" = "N", "Cow-calf group" = "Y")
+
+cols <- c("#F6EFF7", "#67A9CF", "#02818A", "#6A51A3")
+
+figure7a <- ggplot(behaviour_df_1998, aes(fill=variable, y=value, x=Group.size)) + 
+  geom_bar(position="fill", stat="identity", color = "black") +
+  #scale_fill_brewer(palette="Blues") +
+  scale_fill_manual(values=cols)+
+  xlab("Group size") +
+  ylab("Proportion of encounters") +
+  labs(fill = "Preapproach \nbehaviour") +
+  facet_wrap(~ Ccpair) +
+  ggtitle("1998")+
+  theme_bw() +  #or 
+  #theme_classic() +
+    theme(text=element_text(family = "sans", size=10, color = "black"),
+        legend.title = element_text(size=14),
+        legend.text = element_text(size=14),
+        axis.title = element_text(family = "sans", size=14, color="black"),
+        axis.text = element_text(family = "sans", size=11, color="black"),
+        panel.grid.major = element_line(color="gray50", linetype = 3),
+        axis.text.x.bottom = element_text(vjust=0.5),
+        strip.text = element_text(size=14),
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
+    )
+figure7a
+# export figure w=1150 h=700
+
+cols <- c("#F6EFF7", "#BDC9E1", "#67A9CF", "#02818A")
+
+figure7b <- ggplot(behaviour_df_2020, aes(fill=variable, y=value, x=Group.size)) + 
+  geom_bar(position="fill", stat="identity", color = "black") +
+  scale_fill_manual(values=cols)+
+  #scale_fill_brewer(palette="Purples") +
+  xlab("Group size") +
+  ylab("Proportion of encounters") +
+  labs(fill = "Preapproach \nbehaviour") +
+  facet_wrap(~ Ccpair) +
+  ggtitle("2020-2021")+
+  theme_bw() +  #or 
+  #theme_classic() +
+  theme(text=element_text(family = "sans", size=10, color = "black"),
+        legend.title = element_text(size=14),
+        legend.text = element_text(size=14),
+        axis.title = element_text(family = "sans", size=14, color="black"),
+        axis.text = element_text(family = "sans", size=11, color="black"),
+        panel.grid.major = element_line(color="gray50", linetype = 3),
+        axis.text.x.bottom = element_text(vjust=0.5),
+        strip.text = element_text(size=14),
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
+        )
+figure7b
+# export figure w=1150 h=700
